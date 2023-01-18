@@ -123,7 +123,7 @@ class CrossEntropyAgent(object):
         self._best_program_str = best_infos[0]['exec_data']['program_prediction']
 
         return results, pred_programs[elite_idxs].detach().cpu().numpy(),\
-               current_population[elite_idxs].detach().cpu().numpy(), self._best_score
+               current_population[elite_idxs].detach().cpu().numpy(), self._best_score, info['exec_data'], best_infos
 
         # worker_results = self._run_worker(envs)
         # sorted_results = OrderedDict(sorted(worker_results.items(), key=itemgetter(1)))
@@ -187,7 +187,6 @@ class CEMModel(object):
                                       custom_kwargs={'config': config['args']})
         self.best_env.reset()
 
-
         self.agent = CrossEntropyAgent(device, logger, config, self.envs)
 
         self.gt_program_str = open(cfg_envs['executable']['task_file']).readlines()[0].strip()
@@ -198,7 +197,7 @@ class CEMModel(object):
         scores_deque = deque(maxlen=10)
         scores = []
         for epoch in range(1, self.config['CEM']['max_number_of_epochs'] + 1):
-            results, elite_programs, elite_vectors, reward = self.agent.learn(self.envs, self.best_env)
+            results, elite_programs, elite_vectors, reward, exec_data, best_infos = self.agent.learn(self.envs, self.best_env)
             self.agent.current_sigma = self.agent.sigma_sched.step(
                 epoch - 1) if self.agent.sigma_sched.cur_step <= self.agent.sigma_sched.total_num_epoch else self.agent.final_sigma
             scores.append(reward)
@@ -226,6 +225,12 @@ class CEMModel(object):
                                                                       self.agent.best_program_str), epoch)
             print(print_str)
 
+        with open(os.path.join(self.config["outdir"], 'best_exec_data.pkl'), 'wb') as f:
+            pickle.dump(best_infos, f)
+        with open(os.path.join(self.config["outdir"], 'best_program.txt'), 'w') as f:
+            f.write(self.agent.best_program_str)
+        with open(os.path.join(self.config["outdir"], 'scores.pkl'), 'wb') as f:
+            pickle.dump(scores, f)
 
         return scores
 
