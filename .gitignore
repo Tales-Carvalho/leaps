@@ -5,9 +5,13 @@
 .ipynb_checkpoints
 .ipynb_checkpoints/*
 **/__pycache__/
-log/
+logs/
 .ropeproject/
 train_dir
 trained_models/
 wandb/
 *.DS_Store
+env
+data
+pretrain/output_dir
+results/
