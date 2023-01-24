@@ -53,7 +53,7 @@ class CrossEntropyNet(nn.Module):
 
 class CrossEntropyAgent(object):
     """Agent that uses Cross Entropy to learn"""
-    def __init__(self, device, logger, config, envs):
+    def __init__(self, device, logger, config, envs, init_vector = None):
         self.device = device
         self.logger = logger
         self.config = config
@@ -65,7 +65,10 @@ class CrossEntropyAgent(object):
             params = torch.load(checkpt, map_location=self.device)
             self.model.program_vae.load_state_dict(params[0], strict=False)
 
-        self._best_vector = self.model.get_init_vector(config['num_lstm_cell_units'], device)
+        if init_vector is not None:
+            self._best_vector = init_vector
+        else:
+            self._best_vector = self.model.get_init_vector(config['num_lstm_cell_units'], device)
         self._best_score = 0
         self._best_program = None
         self._best_program_str = ""
@@ -153,7 +156,7 @@ class CrossEntropyAgent(object):
         return self._best_score
 
 class CEMModel(object):
-    def __init__(self, device, config, dummy_envs, dsl, logger, writer, global_logs, verbose):
+    def __init__(self, device, config, dummy_envs, dsl, logger, writer, global_logs, verbose, init_vector):
         self.device = device
         self.config = config
         self.global_logs = global_logs
@@ -187,7 +190,7 @@ class CEMModel(object):
                                       custom_kwargs={'config': config['args']})
         self.best_env.reset()
 
-        self.agent = CrossEntropyAgent(device, logger, config, self.envs)
+        self.agent = CrossEntropyAgent(device, logger, config, self.envs, init_vector)
 
         self.gt_program_str = open(cfg_envs['executable']['task_file']).readlines()[0].strip()
 

@@ -223,6 +223,12 @@ def run(config, logger):
     envs = make_vec_envs(config['env_name'], config['seed'], 1,
                          config['gamma'], os.path.join(config['outdir'], 'openai'), device, False, custom_env=custom,
                          custom_kwargs=custom_kwargs)
+    
+    if config['init_vector_file']:
+        with open(config['init_vector_file'], 'rb') as f:
+            init_vector = pickle.load(f)
+    else:
+        init_vector = None
 
     # call the training function using the dataloader and the model
     dsl = get_DSL(seed=seed, environment=config['rl']['envs']['executable']['name'])
@@ -234,7 +240,7 @@ def run(config, logger):
     elif config['algorithm'] == 'supervisedRL':
         model = SupervisedRLModel(device, config, envs, dsl, logger, writer, global_logs, config['verbose'])
     elif config['algorithm'] == 'CEM':
-        model = CEMModel(device, config, envs, dsl, logger, writer, global_logs, config['verbose'])
+        model = CEMModel(device, config, envs, dsl, logger, writer, global_logs, config['verbose'], init_vector)
     else:
         model = SupervisedModel(device, config, envs, dsl, logger, writer, global_logs, config['verbose'])
 
@@ -344,6 +350,8 @@ if __name__ == "__main__":
                         help='Input file for parameters, constants and initial settings')
     parser.add_argument('-v', '--verbose',
                         help='Increase output verbosity', action='store_true')
+    parser.add_argument('--init_vector_file',
+                        help='Init vector file for CEM')
 
     # Parse arguments
     args = parser.parse_args()
