@@ -2,6 +2,7 @@ import multiprocessing
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import os
 import glob
 import pickle
@@ -65,19 +66,32 @@ class CrossEntropyAgent(object):
             params = torch.load(checkpt, map_location=self.device)
             self.model.program_vae.load_state_dict(params[0], strict=False)
 
+        # TODO: change init_vector to output many (n_elite) vectors, and _best_vectors = init_vector DONE
+        
+        self.n_elite = round(config["CEM"]["population_size"] * config["CEM"]["elitism_rate"])
         if init_vector is not None:
-            self._best_vector = init_vector
+            # Sample n_elite vectors with replacement from init_vector, with equal probability
+            indices = torch.ones(init_vector.size(dim=0)).multinomial(self.n_elite, replacement=True)
+            self._best_vectors = init_vector[indices]
         else:
-            self._best_vector = self.model.get_init_vector(config['num_lstm_cell_units'], device)
-        self._best_score = 0
+            # Initialize best_vectors with normal distribution, for each n_elite
+            self._best_vectors = torch.stack([
+                self.model.get_init_vector(config['num_lstm_cell_units'], device) for _ in range(self.n_elite)
+            ])
+            
+        self._best_scores = torch.zeros(self.n_elite)
+
+        # if init_vector is not None:
+        #     self._best_vector = init_vector
+        # else:
+        #     self._best_vector = self.model.get_init_vector(config['num_lstm_cell_units'], device)
+        # self._best_score = 0
         self._best_program = None
         self._best_program_str = ""
 
         self.reduction = config['CEM']['reduction']
 
         # self.workers = [self.create_network(config) for _ in range(config["population_size"])]
-
-        self.n_elite = round(config["CEM"]["population_size"] * config["CEM"]["elitism_rate"])
 
         self.final_sigma = config['CEM']['final_sigma'] if config['CEM']['use_exp_sig_decay'] else config['CEM']['sigma']
         self.sigma_sched = HyperParameterScheduler(initial_val=config['CEM']['sigma'],
@@ -92,9 +106,16 @@ class CrossEntropyAgent(object):
     def learn(self, envs, best_env):
         """run one learning step"""
         results = {}
-        current_population = [self.best_vector + (self.current_sigma * torch.randn_like(self.best_vector)) for
-                              _ in range(self.config['CEM']['population_size'])]
+        # current_population = [self.best_vector + (self.current_sigma * torch.randn_like(self.best_vector)) for
+        #                       _ in range(self.config['CEM']['population_size'])]
+
+        # TODO: instead of self.best_vector, use (a torch equiv of) random.choice(self._best_vectors)
+        current_population = []
+        indices = F.softmax(self._best_scores, dim=0).multinomial(self.config['CEM']['population_size'], replacement=True)
+        for i in indices:
+            current_population.append(self._best_vectors[i] + (self.current_sigma * torch.randn_like(self._best_vectors[i])))
         current_population = torch.stack(current_population, dim=0)
+
         with torch.no_grad():
             pred_programs = self.act(current_population)
 
@@ -107,26 +128,34 @@ class CrossEntropyAgent(object):
         sorted_results = OrderedDict(sorted(results.items(), key=itemgetter(1)))
         elite_idxs = list(sorted_results.keys())[-self.n_elite:]
 
-        if self.reduction == 'mean':
-            self._best_vector = torch.mean(current_population[elite_idxs], dim=0)
-        elif self.reduction == 'max':
-            self._best_vector, _ = torch.max(current_population[elite_idxs], dim=0)
-        elif self.reduction == 'weighted_mean':
-            reward = reward.to(self.device)
-            self._best_vector = torch.sum(reward[elite_idxs] * current_population[elite_idxs], dim=0) / (torch.sum(reward[elite_idxs]) + 1e-5)
-            #warnings.warn("Warning...........weighted_mean method is chosen for CEM aggregation, make sure to define"
-            #              " weighted mean based on calculated rewards")
-        with torch.no_grad():
-            self._best_program = self.act(torch.stack((self.best_vector, self.best_vector)), deterministic=True)[0]
+        # TODO: self._best_vectors = current_population[elite_idxs]
+        self._best_vectors = current_population[elite_idxs]
+        self._best_scores = reward[elite_idxs].squeeze()
 
-        _, best_reward, _, best_infos  = best_env.step(self.best_program.unsqueeze(0))
-        if self.config['CEM']['exponential_reward']:
-            best_reward = torch.exp(best_reward)
-        self._best_score = best_reward.detach().cpu().numpy()
-        self._best_program_str = best_infos[0]['exec_data']['program_prediction']
+        # if self.reduction == 'mean':
+        #     self._best_vector = torch.mean(current_population[elite_idxs], dim=0)
+        # elif self.reduction == 'max':
+        #     self._best_vector, _ = torch.max(current_population[elite_idxs], dim=0)
+        # elif self.reduction == 'weighted_mean':
+        #     reward = reward.to(self.device)
+        #     self._best_vector = torch.sum(reward[elite_idxs] * current_population[elite_idxs], dim=0) / (torch.sum(reward[elite_idxs]) + 1e-5)
+        #     #warnings.warn("Warning...........weighted_mean method is chosen for CEM aggregation, make sure to define"
+        #     #              " weighted mean based on calculated rewards")
+        best_vector_idx = reward.argmax(dim=0).squeeze()
+        
+        with torch.no_grad():
+            self._best_program = self.act(torch.stack((current_population[best_vector_idx], current_population[best_vector_idx])), deterministic=True)[0]
+
+        self._best_program_str = infos[best_vector_idx]['exec_data']['program_prediction']
+
+        # _, best_reward, _, best_infos  = best_env.step(self.best_program.unsqueeze(0))
+        # if self.config['CEM']['exponential_reward']:
+        #     best_reward = torch.exp(best_reward)
+        # self._best_score = best_reward.detach().cpu().numpy()
+        # self._best_program_str = best_infos[0]['exec_data']['program_prediction']
 
         return results, pred_programs[elite_idxs].detach().cpu().numpy(),\
-               current_population[elite_idxs].detach().cpu().numpy(), self._best_score, info['exec_data'], best_infos
+               current_population[elite_idxs].detach().cpu().numpy(), self.best_score, info['exec_data'], infos
 
         # worker_results = self._run_worker(envs)
         # sorted_results = OrderedDict(sorted(worker_results.items(), key=itemgetter(1)))
@@ -149,11 +178,12 @@ class CrossEntropyAgent(object):
 
     @property
     def best_vector(self):
-        return self._best_vector
+        i = self._best_scores.argmax(0)
+        return self._best_vectors[i]
 
     @property
     def best_score(self):
-        return self._best_score
+        return self._best_scores.max()
 
 class CEMModel(object):
     def __init__(self, device, config, dummy_envs, dsl, logger, writer, global_logs, verbose, init_vector):
