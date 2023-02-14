@@ -71,13 +71,19 @@ class CrossEntropyAgent(object):
         self.n_elite = round(config["CEM"]["population_size"] * config["CEM"]["elitism_rate"])
         if init_vector is not None:
             # Sample n_elite vectors with replacement from init_vector, with equal probability
-            indices = torch.ones(init_vector.size(dim=0)).multinomial(self.n_elite, replacement=True)
-            self._best_vectors = init_vector[indices]
+            # indices = torch.ones(init_vector.size(dim=0)).multinomial(self.n_elite, replacement=True)
+            # self._best_vectors = init_vector[indices]
+            # Initialize best_vectors with normal distribution, for each n_elite
+            self._best_vectors = torch.stack([
+                self.model.get_init_vector(config['num_lstm_cell_units'], device) for _ in range(self.n_elite)
+            ])
+            self._key_vectors = init_vector
         else:
             # Initialize best_vectors with normal distribution, for each n_elite
             self._best_vectors = torch.stack([
                 self.model.get_init_vector(config['num_lstm_cell_units'], device) for _ in range(self.n_elite)
             ])
+            self._key_vectors = None
             
         self._best_scores = torch.zeros(self.n_elite)
 
@@ -111,9 +117,15 @@ class CrossEntropyAgent(object):
 
         # TODO: instead of self.best_vector, use (a torch equiv of) random.choice(self._best_vectors)
         current_population = []
-        indices = F.softmax(self._best_scores, dim=0).multinomial(self.config['CEM']['population_size'], replacement=True)
+        indices = torch.ones(self._best_vectors.size(dim=0)).multinomial(self.config['CEM']['population_size'], replacement=True)
         for i in indices:
-            current_population.append(self._best_vectors[i] + (self.current_sigma * torch.randn_like(self._best_vectors[i])))
+            if self._key_vectors is not None:
+                new_z = self._best_vectors[i].clone().detach()
+                for k_v in self._key_vectors:
+                    new_z += 0.1 * torch.rand(1) * (k_v - new_z)
+                current_population.append(new_z)
+            else:
+                current_population.append(self._best_vectors[i] + (self.current_sigma * torch.randn_like(self._best_vectors[i])))
         current_population = torch.stack(current_population, dim=0)
 
         with torch.no_grad():
