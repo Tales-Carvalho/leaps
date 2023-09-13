@@ -8,7 +8,7 @@ from multiprocessing import Pool
 import sys
 sys.path.insert(0, './')
 sys.path.insert(0, './karel_env')
-from karel_env import generator
+from . import generator
 
 MAX_NUM_MARKER = 10
 

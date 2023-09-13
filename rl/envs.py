@@ -9,16 +9,16 @@ import numpy as np
 import torch
 from gym.spaces.box import Box
 
-from baselines import bench
-from baselines.common.atari_wrappers import make_atari, wrap_deepmind
-from baselines.common.vec_env import VecEnvWrapper
-from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
-from baselines.common.vec_env.vec_normalize import \
+from .baselines import bench
+from .baselines.common.atari_wrappers import make_atari, wrap_deepmind
+from .baselines.common.vec_env import VecEnvWrapper
+from .baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from .baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
+from .baselines.common.vec_env.vec_normalize import \
     VecNormalize as VecNormalize_
 
-from program_env import ProgramEnv1
-from condition_env import ConditionEnvGym
+from ..prl_gym.program_env import ProgramEnv1
+from ..prl_gym.condition_env import ConditionEnvGym
 
 try:
     import dm_control2gym

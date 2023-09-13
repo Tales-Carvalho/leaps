@@ -8,9 +8,9 @@ import time
 import numpy as np
 import gym
 from gym import spaces
-from exec_env import ExecEnv1, ExecEnv2
-from karel_env.dsl.dsl_parse import parse
-from fetch_mapping import fetch_mapping
+from .exec_env import ExecEnv1, ExecEnv2
+from ..karel_env.dsl.dsl_parse import parse
+from ..fetch_mapping import fetch_mapping
 
 
 class ProgramEnv(gym.Env):

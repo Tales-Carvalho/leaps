@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch.optim import lr_scheduler
 
-from rl.envs import VecNormalize
+from ..rl.envs import VecNormalize
 
 
 # Get a render function

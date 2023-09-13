@@ -17,13 +17,13 @@ import numpy as np
 import collections
 from multiprocessing import Pool
 import gym
-import prl_gym
+from .. import prl_gym
 
-from karel_env import karel
-from karel_env.dsl import get_DSL
-from karel_env.dsl.dsl_parse import parse
-from dsl.dsl_parse_and_trace import parse_and_trace
-from karel_env.generator import KarelStateGenerator
+from ..karel_env import karel
+from ..karel_env.dsl import get_DSL
+from ..karel_env.dsl.dsl_parse import parse
+from ..karel_env.dsl.dsl_parse_and_trace import parse_and_trace
+from ..karel_env.generator import KarelStateGenerator
 
 
 def array_to_str(state):
