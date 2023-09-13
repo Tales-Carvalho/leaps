@@ -61,7 +61,7 @@ class SupervisedRLModel(object):
                 self.sl_model.net.train()
                 torch.set_grad_enabled(True)
 
-                if record_dict_eval['mean_decoder_greedy_program_accuracy'] < 90:
+                if record_dict_eval['mean_decoder_greedy_program_accuracy'] < 80:
                     continue
             else:
                 self.sl_model.net.condition_policy.setup = 'supervised'
