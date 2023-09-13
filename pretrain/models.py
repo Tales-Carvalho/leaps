@@ -166,7 +166,7 @@ class Decoder(NNBase):
             out_of_syntax_list.append(self.syntax_checker.get_sequence_mask(grammar_state[program_idx],
                                                                             [inp_dsl_token]).to(device))
         torch.cat(out_of_syntax_list, 0, out=out_of_syntax_mask)
-        out_of_syntax_mask = out_of_syntax_mask.squeeze()
+        out_of_syntax_mask = out_of_syntax_mask.view(batch_size, -1)
         syntax_mask = torch.where(out_of_syntax_mask,
                                   -torch.finfo(torch.float32).max * torch.ones_like(out_of_syntax_mask).float(),
                                   torch.zeros_like(out_of_syntax_mask).float())
@@ -325,19 +325,19 @@ class Decoder(NNBase):
                 eop_output_logits_all.append(eop_output_logits)
                 eop_pred_programs.append(eop_preds)
             if not evaluate:
-                output_mask_all[:, i] = output_mask.flatten()
+                output_mask_all[:, i] = output_mask.view(-1)
 
             if self.setup == 'supervised':
                 if teacher_enforcing:
-                    current_tokens = gt_programs[:, i+1].squeeze()
+                    current_tokens = gt_programs[:, i+1].view(-1)
                 else:
-                    current_tokens = preds.squeeze()
+                    current_tokens = preds.view(-1)
             else:
                 if evaluate:
                     assert self.setup == 'RL'
                     current_tokens = action[:, i]
                 else:
-                    current_tokens = preds.squeeze()
+                    current_tokens = preds.view(-1)
 
 
         # umask first end-token for two headed policy
